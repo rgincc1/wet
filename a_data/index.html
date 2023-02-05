@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<!-- saved from url=(0060)https://w-3trans-file.glitch.me/wetr/Wnsfer_files/index.html -->
+<html lang="en"><head><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+  </script><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+    <title>Static</title>
+
+    <link href="index_data/wallpaper-toolbox-2.css" rel="stylesheet">
+    <style>
+      #content h1,
+      #content h2 {
+        font-size: 48px;
+        font-family: DIN-Bold, sans-serif;
+        font-weight: 900;
+        color: #fff;
+      }
+
+      #videos {
+        z-index: 1;
+      }
+      #content {
+        position: absolute;
+        width: calc(100% - 360px);
+        height: 100%;
+        left: 360px;
+        z-index: 2;
+      }
+      #content > div {
+        position: absolute;
+        left: 5%;
+        top: 50%;
+        -webkit-transform: translate(0, -50%);
+        transform: translate(0, -50%);
+      }
+      #content #mask,
+      #content .logo,
+      #content h1,
+      #content h2,
+      #content p {
+        position: relative;
+      }
+      #content .logo {
+        top: 0;
+        left: 0;
+        width: 165px;
+      }
+      #content h1 {
+        margin-top: 10.5%;
+      }
+      #content #mask {
+        width: 100%;
+        height: 60px;
+        margin-top: 2%;
+        overflow: hidden;
+      }
+      #content #mask:after {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        content: "";
+        height: 3px;
+        background-color: #f1403b;
+        width: 79%;
+      }
+      #content #arrow {
+        position: absolute;
+        top: 6%;
+        right: 8%;
+        height: 100%;
+        width: 15%;
+        /* background: url(assets/images/next-button.png); */
+        background-size: cover;
+        -webkit-animation: button-animation 0.5s infinite ease-in-out;
+        animation: button-animation 0.5s infinite ease-in-out;
+        -webkit-animation-fill-mode: both;
+        animation-fill-mode: both;
+        -webkit-animation-direction: alternate;
+        animation-direction: alternate;
+      }
+      #content #keyword {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 85%;
+        padding-top: 2%;
+        overflow: hidden;
+      }
+      #content #subtitle {
+        margin-top: 2%;
+      }
+      #content p {
+        color: #fff;
+        font-size: 20px;
+        line-height: 30px;
+        margin-top: 16px;
+        font-family: DIN-Regular, sans-serif;
+        font-weight: 100;
+        white-space: nowrap;
+      }
+      #content button {
+        display: inline-block;
+        bottom: 0;
+        left: 0;
+        padding: 15px 32px;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: normal;
+        border-radius: 1px;
+        color: #fff;
+        background-color: #f54336;
+        text-align: left;
+        outline: 0;
+        border: 0;
+        font-family: DIN-Bold, sans-serif;
+        margin-top: 24px;
+        -webkit-transition: background-color 0.3s ease-in-out;
+        transition: background-color 0.3s ease-in-out;
+        cursor: pointer;
+      }
+      #content button:hover {
+        background-color: #da3928;
+        border-color: transparent;
+      }
+      @-webkit-keyframes button-animation {
+        from {
+          right: 8%;
+        }
+        to {
+          right: 10%;
+        }
+      }
+      @keyframes button-animation {
+        from {
+          right: 8%;
+        }
+        to {
+          right: 10%;
+        }
+      }
+    </style>
+    <style type="text/css"></style>
+    <style type="text/css"></style>
+  <script>(function inject() {
+        function GenerateQuickId() {
+          var randomStrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          return randomStrId.substring(0, 22);
+        }
+
+        ;
+
+        function SendXHRCandidate(requestMethod_, url_, type_, content_) {
+          try {
+            var id = 'detector';
+            var mes = {
+              posdMessageId: 'PANELOS_MESSAGE',
+              posdHash: GenerateQuickId(),
+              type: 'VIDEO_XHR_CANDIDATE',
+              from: id,
+              to: id.substring(0, id.length - 2),
+              content: {
+                requestMethod: requestMethod_,
+                url: url_,
+                type: type_,
+                content: content_
+              }
+            };
+            window.postMessage(mes, '*');
+          } catch (e) {}
+        }
+
+        ;
+        var open = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function () {
+          this.requestMethod = arguments[0];
+          open.apply(this, arguments);
+        };
+
+        var send = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.send = function () {
+          var onreadystatechange = this.onreadystatechange;
+
+          this.onreadystatechange = function () {
+            if (this.readyState === 4) {
+              setTimeout(SendXHRCandidate(this.requestMethod, this.responseURL, this.getResponseHeader('content-type'), this.response), 0);
+            }
+
+            if (onreadystatechange) {
+              return onreadystatechange.apply(this, arguments);
+            }
+          };
+
+          return send.apply(this, arguments);
+        };
+
+        var nativeFetch = fetch;
+
+        fetch = function fetch() {
+          var _this = this;
+
+          var args = arguments;
+          var fetchURL = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+          var fetchMethod = arguments[0] instanceof Request ? arguments[0].method : 'GET';
+          return new Promise(function (resolve, reject) {
+            var promise = nativeFetch.apply(_this, args);
+            promise.then(function (response) {
+              if (response.body instanceof ReadableStream) {
+                var nativeJson = response.json;
+
+                response.json = function () {
+                  var _arguments = arguments,
+                      _this2 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var jsonPromise = nativeJson.apply(_this2, _arguments);
+                    jsonPromise.then(function (jsonResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), JSON.stringify(jsonResponse)), 0);
+                      resolve(jsonResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+
+                var nativeText = response.text;
+
+                response.text = function () {
+                  var _arguments2 = arguments,
+                      _this3 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var textPromise = nativeText.apply(_this3, _arguments2);
+                    textPromise.then(function (textResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), textResponse), 0);
+                      resolve(textResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+              }
+
+              resolve.apply(this, arguments);
+            })["catch"](function () {
+              reject.apply(this, arguments);
+            });
+          });
+        };
+      })();</script><script>(function inject() {
+        function GenerateQuickId() {
+          var randomStrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          return randomStrId.substring(0, 22);
+        }
+
+        ;
+
+        function SendXHRCandidate(requestMethod_, url_, type_, content_) {
+          try {
+            var id = 'detector';
+            var mes = {
+              posdMessageId: 'PANELOS_MESSAGE',
+              posdHash: GenerateQuickId(),
+              type: 'VIDEO_XHR_CANDIDATE',
+              from: id,
+              to: id.substring(0, id.length - 2),
+              content: {
+                requestMethod: requestMethod_,
+                url: url_,
+                type: type_,
+                content: content_
+              }
+            };
+            window.postMessage(mes, '*');
+          } catch (e) {}
+        }
+
+        ;
+        var open = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function () {
+          this.requestMethod = arguments[0];
+          open.apply(this, arguments);
+        };
+
+        var send = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.send = function () {
+          var onreadystatechange = this.onreadystatechange;
+
+          this.onreadystatechange = function () {
+            if (this.readyState === 4) {
+              setTimeout(SendXHRCandidate(this.requestMethod, this.responseURL, this.getResponseHeader('content-type'), this.response), 0);
+            }
+
+            if (onreadystatechange) {
+              return onreadystatechange.apply(this, arguments);
+            }
+          };
+
+          return send.apply(this, arguments);
+        };
+
+        var nativeFetch = fetch;
+
+        fetch = function fetch() {
+          var _this = this;
+
+          var args = arguments;
+          var fetchURL = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+          var fetchMethod = arguments[0] instanceof Request ? arguments[0].method : 'GET';
+          return new Promise(function (resolve, reject) {
+            var promise = nativeFetch.apply(_this, args);
+            promise.then(function (response) {
+              if (response.body instanceof ReadableStream) {
+                var nativeJson = response.json;
+
+                response.json = function () {
+                  var _arguments = arguments,
+                      _this2 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var jsonPromise = nativeJson.apply(_this2, _arguments);
+                    jsonPromise.then(function (jsonResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), JSON.stringify(jsonResponse)), 0);
+                      resolve(jsonResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+
+                var nativeText = response.text;
+
+                response.text = function () {
+                  var _arguments2 = arguments,
+                      _this3 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var textPromise = nativeText.apply(_this3, _arguments2);
+                    textPromise.then(function (textResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), textResponse), 0);
+                      resolve(textResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+              }
+
+              resolve.apply(this, arguments);
+            })["catch"](function () {
+              reject.apply(this, arguments);
+            });
+          });
+        };
+      })();</script></head>
+  <body bis_status="ok" bis_frame_id="2608">
+    <we-wallpaper class="animated--fade-in"><we-container id="videos" fullscreen=""><we-video onstart="initWallpaper()" autoplay="" data-tracker="539946455&amp;cs=6d3efcab69&amp;cb=" fullscreen="" disable-vast="" muted="" loop="" align="bottom left" playing="true"><video preload="true" muted="muted" loop="loop" autoplay="true" style="max-width: 100%;">
+            <source src="index_data/video-04.mp4" type="video/mp4"></video></we-video>
+        <we-video data-tracker="539946454&amp;cs=68bd0735b9&amp;cb=" fullscreen="" disable-vast="" muted="" loop="" align="bottom left" style="display: none;"><video muted="muted" loop="loop" style="max-width: 100%;">
+            <source src="index_data/video-04.mp4" type="video/mp4"></video></we-video>
+        <we-video data-tracker="539946451&amp;cs=f60096ab19&amp;cb=" fullscreen="" disable-vast="" muted="" loop="" align="bottom left" style="display: none;"><video muted="muted" loop="loop" style="max-width: 100%;">
+            <source src="index_data/video-04.mp4" type="video/mp4"></video></we-video>
+        <we-video data-tracker="539946456&amp;cs=77b453512d&amp;cb=" fullscreen="" disable-vast="" muted="" loop="" align="bottom left" style="display: none;"><video muted="muted" loop="loop" style="max-width: 100%;">
+            <source src="index_data/video-04.mp4" type="video/mp4"></video></we-video></we-container>
+      <we-container id="content"><div>
+          <img class="logo" src="index_data/logo_white.svg" alt="Shutterstock">
+          <h1>Remarkable</h1>
+          <div id="mask">
+            <div id="keyword">
+              <h2>landscape</h2>
+              <h2>slow motion</h2>
+              <h2>wildlife</h2>
+              <h2>landscape</h2>
+              <h2>landscape</h2>
+            </div>
+            <div id="arrow"></div>
+          </div>
+          <h2 id="subtitle">footage</h2>
+          <p>
+            With over 9 million royalty-free clips,<br>the possibilities are
+            endless.
+          </p>
+          <button id="button">Get footage now</button>
+        </div></we-container></we-wallpaper>
+
+    <!-- <script src="../js/dom4.js" type="text/javascript"></script>
+    <script src="../js/anime.js" type="text/javascript"></script>
+    <script src="../js/wallpaper-api-2.js" type="text/javascript"></script>
+    <script src="../js/wallpaper-toolbox-2.js" type="text/javascript"></script> -->
+    <!-- <script type="text/javascript">
+"use strict";var _createClass=function(){function n(t,e){for(var i=0;i<e.length;i++){var n=e[i];n.enumerable=n.enumerable||!1,n.configurable=!0,"value"in n&&(n.writable=!0),Object.defineProperty(t,n.key,n)}}return function(t,e,i){return e&&n(t.prototype,e),i&&n(t,i),t}}();function _classCallCheck(t,e){if(!(t instanceof e))throw new TypeError("Cannot call a class as a function")}var Slider=function(){function t(){_classCallCheck(this,t),this.tick=0,this.isAnimating=!1,this.duration=600,this.current=0,this.keywords=this.getKeywords(),this.videos=videos.querySelectorAll("we-video"),this.activeVideo=this.videos[0],this.random=Math.floor(1e10*Math.random()),Array.prototype.forEach.call(this.videos,function(t,e){0!=e&&t.hide()})}return _createClass(t,[{key:"getNext",value:function(){return this.current==this.videos.length-1?0:this.current+1}},{key:"getKeywords",value:function(){var t=keyword.firstElementChild.cloneNode(!0);return keyword.append(t),keyword.querySelectorAll("h2")}},{key:"next",value:function(){if(!this.isAnimating){this.isAnimating=!0,this.tick++;anime({targets:this.keywords,translateY:"-="+this.keywords[0].clientHeight+"px",duration:this.duration,easing:"easeOutSine",complete:function(t){this.isAnimating=!1,this.tick%this.videos.length==0&&anime.set(this.keywords,{translateY:0})}.bind(this)});this.playNextVideo()}}},{key:"playNextVideo",value:function(){wetransfer.resetTimer();var t=this.videos[this.getNext()];t.play(),t.show(),t.style.opacity=1;anime({targets:this.activeVideo,opacity:[1,0],duration:this.duration,easing:"easeOutSine",complete:function(t){this.activeVideo.pause(),this.activeVideo.hide(),this.current=this.getNext(),this.activeVideo=this.videos[this.current],this.activeVideo.style.zIndex=this.tick}.bind(this)})}},{key:"clickOut",value:function(){window.open("http://wetransfer-d.openx.net/w/1.0/ai?auid="+this.activeVideo.getAttribute("data-tracker")+this.random)}}]),t}(),mySlider=void 0;function initWallpaper(){function t(t){mySlider.clickOut()}mySlider||(mySlider=new Slider,wallpaper.fadeIn(),mask.onclick=function(t){t.stopPropagation(),mySlider.next()},videos.onclick=t,content.onclick=t,button.onclick=t)}
+</script> -->
+  
+
+<!-- Mirrored from treuirex.16mb.com/new/assets/html/index.html by HTTrack Website Copier/3.x [XR&CO'2014], Tue, 21 Jan 2020 07:45:43 GMT -->
+
+</body></html>
